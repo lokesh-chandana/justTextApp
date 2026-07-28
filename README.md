@@ -26,6 +26,18 @@ Deploy behind HTTPS (Vercel works), then enter these values in the Meta dashboar
 On Vercel, set `WHATSAPP_VERIFY_TOKEN` and `WHATSAPP_APP_SECRET` in Project
 Settings → Environment Variables, then redeploy.
 
+## Supabase webhook logs
+
+Run `supabase/migrations/20260728170000_create_webhook_logs.sql` in the
+Supabase SQL Editor. Then add these Vercel environment variables:
+
+- `SUPABASE_URL` — Project Settings → API → Project URL
+- `SUPABASE_SERVICE_ROLE_KEY` — Project Settings → API Keys → service role key
+
+Redeploy after adding them. Every request to `/webhook` is stored in
+`webhook_logs` with its timestamp, HTTP method, and JSON data. The Meta verify
+token is deliberately excluded from logs.
+
 Subscribe the webhook to the `messages` field. The GET route verifies the
 callback, while Meta sends incoming events to the POST route at the same URL.
 

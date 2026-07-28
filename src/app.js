@@ -1,5 +1,6 @@
 const crypto = require("node:crypto");
 const express = require("express");
+const { logWebhook } = require("./webhookLogger");
 
 const app = express();
 
@@ -44,7 +45,9 @@ app.get("/health", (_request, response) => {
 });
 
 // Meta calls this endpoint when you configure the callback URL.
-app.get("/webhook", (request, response) => {
+app.get("/webhook", async (request, response) => {
+  await logWebhook(request);
+
   const mode = request.query["hub.mode"];
   const token = request.query["hub.verify_token"];
   const challenge = request.query["hub.challenge"];
@@ -57,7 +60,9 @@ app.get("/webhook", (request, response) => {
 });
 
 // Meta delivers incoming WhatsApp events here.
-app.post("/webhook", (request, response) => {
+app.post("/webhook", async (request, response) => {
+  await logWebhook(request);
+
   if (!hasValidSignature(request)) {
     return response.sendStatus(401);
   }
