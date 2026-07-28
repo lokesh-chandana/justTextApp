@@ -1,5 +1,16 @@
+const crypto = require("node:crypto");
+
+// Identifies a token in logs without exposing it, so the deployed value can be
+// compared against a known-working one.
+function fingerprint(token) {
+  return crypto.createHash("sha256").update(token).digest("hex").slice(0, 8);
+}
+
 async function sendDevelopmentReply({ phoneNumberId, to }) {
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN?.trim().replace(
+    /^["']|["']$/g,
+    "",
+  );
 
   if (!accessToken) {
     console.error("Reply was not sent: WHATSAPP_ACCESS_TOKEN is missing");
@@ -36,6 +47,9 @@ async function sendDevelopmentReply({ phoneNumberId, to }) {
     );
     error.details = {
       httpStatus: response.status,
+      phoneNumberId,
+      tokenLength: accessToken.length,
+      tokenFingerprint: fingerprint(accessToken),
       graphError: result.error
         ? {
             code: result.error.code,
