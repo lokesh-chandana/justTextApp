@@ -1,0 +1,9 @@
+RewriteEngine On
+
+# Keep requests for real static files and directories on Apache.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Forward all other requests, including /webhook, to the Node.js process.
+# Change 3000 if the Node process uses a different local port.
+RewriteRule ^(.*)$ http://127.0.0.1:3000/$1 [P,L,QSA]
