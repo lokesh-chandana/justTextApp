@@ -20,8 +20,15 @@ app.use(
   }),
 );
 
+// A Meta app secret is always 32 lowercase hex characters.
+const APP_SECRET_PATTERN = /^[0-9a-f]{32}$/;
+
+function readAppSecret() {
+  return process.env.WHATSAPP_APP_SECRET?.trim().replace(/^["']|["']$/g, "");
+}
+
 function checkSignature(request) {
-  const appSecret = process.env.WHATSAPP_APP_SECRET?.trim();
+  const appSecret = readAppSecret();
 
   // Signature checking is optional locally, but should be configured in production.
   if (!appSecret) return { valid: true };
@@ -47,12 +54,18 @@ function checkSignature(request) {
     return { valid: true };
   }
 
+  const malformedSecret = !APP_SECRET_PATTERN.test(appSecret);
+
   return {
     valid: false,
-    reason: "signature mismatch",
+    reason: malformedSecret
+      ? "WHATSAPP_APP_SECRET is not a 32-character hex Meta app secret"
+      : "signature mismatch",
     details: {
       rawBodyBytes: rawBody.length,
       contentLength: request.get("content-length"),
+      secretLength: appSecret.length,
+      secretLooksValid: !malformedSecret,
       receivedPrefix: received.slice(0, 16),
       expectedPrefix: expected.slice(0, 16),
     },
