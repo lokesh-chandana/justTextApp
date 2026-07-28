@@ -18,10 +18,13 @@ The server runs at `http://localhost:3000`.
 
 ## Meta webhook settings
 
-Deploy the app behind HTTPS, then enter these values in the Meta dashboard:
+Deploy behind HTTPS (Vercel works), then enter these values in the Meta dashboard:
 
-- **Callback URL:** `https://your-domain.com/webhook`
+- **Callback URL:** `https://YOUR-APP.vercel.app/webhook`
 - **Verify token:** the exact value of `WHATSAPP_VERIFY_TOKEN`
+
+On Vercel, set `WHATSAPP_VERIFY_TOKEN` and `WHATSAPP_APP_SECRET` in Project
+Settings → Environment Variables, then redeploy.
 
 Subscribe the webhook to the `messages` field. The GET route verifies the
 callback, while Meta sends incoming events to the POST route at the same URL.
@@ -29,15 +32,11 @@ callback, while Meta sends incoming events to the POST route at the same URL.
 Meta cannot call `localhost`. For local development, expose port 3000 with an
 HTTPS tunnel and use its `/webhook` URL.
 
-## Apache `.htaccess`
+## Hosting notes
 
-The included `.htaccess` reverse-proxies requests to Node on port 3000. It
-requires Apache `mod_rewrite` and `mod_proxy`. The Node process must already be
-running.
-
-Some shared hosts use cPanel Passenger and generate their own `.htaccess`.
-In that case, create a Node.js application with `src/server.js` as its startup
-file and use the host-generated configuration instead.
+- **Vercel:** use the repo as-is. `api/index.js` exports the Express app.
+- **Apache:** `.htaccess` reverse-proxies to Node on port 3000 (`mod_rewrite` +
+  `mod_proxy`). Not used on Vercel.
 
 ## Endpoints
 
