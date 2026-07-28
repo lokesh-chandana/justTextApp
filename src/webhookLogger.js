@@ -50,4 +50,26 @@ async function logWebhook(request) {
   }
 }
 
-module.exports = { logWebhook };
+async function claimMessage(messageId) {
+  const client = getSupabase();
+
+  if (!client) {
+    console.warn("Message was not processed: Supabase is not configured");
+    return false;
+  }
+
+  const { error } = await client.from("processed_messages").insert({
+    message_id: messageId,
+  });
+
+  if (!error) return true;
+  if (error.code === "23505") return false;
+
+  console.error("Failed to claim WhatsApp message", {
+    code: error.code,
+    message: error.message,
+  });
+  return false;
+}
+
+module.exports = { claimMessage, logWebhook };

@@ -23,8 +23,9 @@ Deploy behind HTTPS (Vercel works), then enter these values in the Meta dashboar
 - **Callback URL:** `https://YOUR-APP.vercel.app/webhook`
 - **Verify token:** the exact value of `WHATSAPP_VERIFY_TOKEN`
 
-On Vercel, set `WHATSAPP_VERIFY_TOKEN` and `WHATSAPP_APP_SECRET` in Project
-Settings → Environment Variables, then redeploy.
+On Vercel, set `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`, and the rotated
+`WHATSAPP_ACCESS_TOKEN` in Project Settings → Environment Variables, then
+redeploy. Never commit an access token.
 
 ## Supabase webhook logs
 
@@ -36,7 +37,12 @@ Supabase SQL Editor. Then add these Vercel environment variables:
 
 Redeploy after adding them. Every request to `/webhook` is stored in
 `webhook_logs` with its timestamp, HTTP method, and JSON data. The Meta verify
-token is deliberately excluded from logs.
+token is deliberately excluded from logs. Incoming message IDs are claimed in
+`processed_messages`, preventing duplicate replies when Meta retries delivery.
+
+Incoming messages receive `App is still in development`. The webhook sends its
+HTTP acknowledgement before database logging and reply processing, preventing
+retries caused by a slow Supabase request.
 
 Subscribe the webhook to the `messages` field. The GET route verifies the
 callback, while Meta sends incoming events to the POST route at the same URL.

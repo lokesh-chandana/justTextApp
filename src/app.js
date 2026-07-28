@@ -1,6 +1,8 @@
 const crypto = require("node:crypto");
 const express = require("express");
-const { logWebhook } = require("./webhookLogger");
+const { waitUntil } = require("@vercel/functions");
+const { claimMessage, logWebhook } = require("./webhookLogger");
+const { sendDevelopmentReply } = require("./whatsapp");
 
 const app = express();
 
@@ -36,6 +38,41 @@ function hasValidSignature(request) {
   );
 }
 
+function runInBackground(promise) {
+  promise.catch((error) => {
+    console.error("Webhook background task failed", error);
+  });
+  waitUntil(promise);
+}
+
+async function processWebhook(request) {
+  await logWebhook(request);
+
+  if (request.body?.object !== "whatsapp_business_account") return;
+
+  for (const entry of request.body.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      const phoneNumberId = change.value?.metadata?.phone_number_id;
+
+      for (const message of change.value?.messages ?? []) {
+        if (!phoneNumberId || !(await claimMessage(message.id))) continue;
+
+        console.log("WhatsApp message received", {
+          from: message.from,
+          id: message.id,
+          type: message.type,
+          text: message.text?.body,
+        });
+
+        await sendDevelopmentReply({
+          phoneNumberId,
+          to: message.from,
+        });
+      }
+    }
+  }
+}
+
 app.get("/", (_request, response) => {
   response.json({ service: "WhatsApp chatbot backend", status: "running" });
 });
@@ -45,9 +82,8 @@ app.get("/health", (_request, response) => {
 });
 
 // Meta calls this endpoint when you configure the callback URL.
-app.get("/webhook", async (request, response) => {
-  await logWebhook(request);
-
+app.get("/webhook", (request, response) => {
+  runInBackground(logWebhook(request));
   const mode = request.query["hub.mode"];
   const token = request.query["hub.verify_token"];
   const challenge = request.query["hub.challenge"];
@@ -60,30 +96,15 @@ app.get("/webhook", async (request, response) => {
 });
 
 // Meta delivers incoming WhatsApp events here.
-app.post("/webhook", async (request, response) => {
-  await logWebhook(request);
-
+app.post("/webhook", (request, response) => {
   if (!hasValidSignature(request)) {
+    runInBackground(logWebhook(request));
     return response.sendStatus(401);
   }
 
   // Acknowledge promptly so Meta does not retry the event.
   response.sendStatus(200);
-
-  if (request.body?.object !== "whatsapp_business_account") return;
-
-  for (const entry of request.body.entry ?? []) {
-    for (const change of entry.changes ?? []) {
-      for (const message of change.value?.messages ?? []) {
-        console.log("WhatsApp message received", {
-          from: message.from,
-          id: message.id,
-          type: message.type,
-          text: message.text?.body,
-        });
-      }
-    }
-  }
+  runInBackground(processWebhook(request));
 });
 
 module.exports = app;
