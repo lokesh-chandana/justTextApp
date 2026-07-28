@@ -44,6 +44,10 @@ Incoming messages receive `App is still in development`. The webhook sends its
 HTTP acknowledgement before database logging and reply processing, preventing
 retries caused by a slow Supabase request.
 
+Run `supabase/migrations/20260728174500_create_application_logs.sql` to add
+structured diagnostics. `application_logs` records signature rejection,
+deduplication, reply attempts, Graph API failures, and successful message IDs.
+
 Subscribe the webhook to the `messages` field. The GET route verifies the
 callback, while Meta sends incoming events to the POST route at the same URL.
 

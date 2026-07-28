@@ -3,7 +3,7 @@ async function sendDevelopmentReply({ phoneNumberId, to }) {
 
   if (!accessToken) {
     console.error("Reply was not sent: WHATSAPP_ACCESS_TOKEN is missing");
-    return;
+    throw new Error("WHATSAPP_ACCESS_TOKEN is missing");
   }
 
   const response = await fetch(
@@ -28,10 +28,30 @@ async function sendDevelopmentReply({ phoneNumberId, to }) {
     },
   );
 
+  const result = await response.json().catch(() => ({}));
+
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`WhatsApp API returned ${response.status}: ${error}`);
+    const error = new Error(
+      result.error?.message ?? `WhatsApp API returned HTTP ${response.status}`,
+    );
+    error.details = {
+      httpStatus: response.status,
+      graphError: result.error
+        ? {
+            code: result.error.code,
+            type: result.error.type,
+            subcode: result.error.error_subcode,
+            traceId: result.error.fbtrace_id,
+          }
+        : undefined,
+    };
+    throw error;
   }
+
+  return {
+    recipient: result.contacts?.[0]?.wa_id,
+    sentMessageId: result.messages?.[0]?.id,
+  };
 }
 
 module.exports = { sendDevelopmentReply };

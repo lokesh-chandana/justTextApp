@@ -1,7 +1,12 @@
 const crypto = require("node:crypto");
 const express = require("express");
 const { waitUntil } = require("@vercel/functions");
-const { claimMessage, logWebhook } = require("./webhookLogger");
+const {
+  claimMessage,
+  logApplicationEvent,
+  logWebhook,
+  releaseMessage,
+} = require("./webhookLogger");
 const { sendDevelopmentReply } = require("./whatsapp");
 
 const app = express();
@@ -64,14 +69,39 @@ function runInBackground(promise) {
 async function processWebhook(request) {
   await logWebhook(request);
 
-  if (request.body?.object !== "whatsapp_business_account") return;
+  if (request.body?.object !== "whatsapp_business_account") {
+    await logApplicationEvent({
+      level: "warning",
+      event: "unsupported_webhook_object",
+      data: { object: request.body?.object },
+    });
+    return;
+  }
 
   for (const entry of request.body.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const phoneNumberId = change.value?.metadata?.phone_number_id;
 
       for (const message of change.value?.messages ?? []) {
-        if (!phoneNumberId || !(await claimMessage(message.id))) continue;
+        if (!phoneNumberId) {
+          await logApplicationEvent({
+            level: "error",
+            event: "missing_phone_number_id",
+            messageId: message.id,
+          });
+          continue;
+        }
+
+        const claim = await claimMessage(message.id);
+        if (!claim.claimed) {
+          await logApplicationEvent({
+            level: claim.reason === "duplicate" ? "info" : "error",
+            event: "message_not_claimed",
+            messageId: message.id,
+            data: { reason: claim.reason },
+          });
+          continue;
+        }
 
         console.log("WhatsApp message received", {
           from: message.from,
@@ -80,10 +110,38 @@ async function processWebhook(request) {
           text: message.text?.body,
         });
 
-        await sendDevelopmentReply({
-          phoneNumberId,
-          to: message.from,
+        await logApplicationEvent({
+          event: "reply_send_started",
+          messageId: message.id,
+          data: {
+            phoneNumberId,
+            recipient: message.from,
+            incomingType: message.type,
+          },
         });
+
+        try {
+          const result = await sendDevelopmentReply({
+            phoneNumberId,
+            to: message.from,
+          });
+
+          await logApplicationEvent({
+            event: "reply_send_succeeded",
+            messageId: message.id,
+            data: result,
+          });
+        } catch (error) {
+          await releaseMessage(message.id);
+          await logApplicationEvent({
+            level: "error",
+            event: "reply_send_failed",
+            message: error.message,
+            messageId: message.id,
+            data: error.details ?? {},
+          });
+          throw error;
+        }
       }
     }
   }
@@ -120,7 +178,17 @@ app.post("/webhook", (request, response) => {
       reason: signature.reason,
       ...signature.details,
     });
-    runInBackground(logWebhook(request));
+    runInBackground(
+      Promise.all([
+        logWebhook(request),
+        logApplicationEvent({
+          level: "error",
+          event: "webhook_signature_rejected",
+          message: signature.reason,
+          data: signature.details ?? {},
+        }),
+      ]),
+    );
     return response.sendStatus(401);
   }
 

@@ -55,21 +55,71 @@ async function claimMessage(messageId) {
 
   if (!client) {
     console.warn("Message was not processed: Supabase is not configured");
-    return false;
+    return { claimed: false, reason: "supabase_not_configured" };
   }
 
   const { error } = await client.from("processed_messages").insert({
     message_id: messageId,
   });
 
-  if (!error) return true;
-  if (error.code === "23505") return false;
+  if (!error) return { claimed: true };
+  if (error.code === "23505") {
+    return { claimed: false, reason: "duplicate" };
+  }
 
   console.error("Failed to claim WhatsApp message", {
     code: error.code,
     message: error.message,
   });
-  return false;
+  return { claimed: false, reason: "database_error" };
 }
 
-module.exports = { claimMessage, logWebhook };
+async function logApplicationEvent({
+  level = "info",
+  event,
+  message,
+  messageId,
+  data = {},
+}) {
+  const client = getSupabase();
+  if (!client) return;
+
+  const { error } = await client.from("application_logs").insert({
+    level,
+    event,
+    message: message ?? null,
+    message_id: messageId ?? null,
+    data,
+  });
+
+  if (error) {
+    console.error("Failed to save application log", {
+      code: error.code,
+      message: error.message,
+    });
+  }
+}
+
+async function releaseMessage(messageId) {
+  const client = getSupabase();
+  if (!client) return;
+
+  const { error } = await client
+    .from("processed_messages")
+    .delete()
+    .eq("message_id", messageId);
+
+  if (error) {
+    console.error("Failed to release WhatsApp message", {
+      code: error.code,
+      message: error.message,
+    });
+  }
+}
+
+module.exports = {
+  claimMessage,
+  logApplicationEvent,
+  logWebhook,
+  releaseMessage,
+};
