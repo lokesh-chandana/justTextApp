@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const { after, before, test } = require("node:test");
 
 process.env.WHATSAPP_VERIFY_TOKEN = "test-token";
@@ -62,4 +63,55 @@ test("incoming webhook events are acknowledged", async () => {
   });
 
   assert.equal(response.status, 200);
+});
+
+test("a payload signed with the app secret is accepted", async (t) => {
+  const appSecret = "test-app-secret";
+  process.env.WHATSAPP_APP_SECRET = appSecret;
+  t.after(() => delete process.env.WHATSAPP_APP_SECRET);
+
+  const body = JSON.stringify({
+    object: "whatsapp_business_account",
+    entry: [],
+  });
+  const signature = crypto
+    .createHmac("sha256", appSecret)
+    .update(body)
+    .digest("hex");
+
+  const response = await fetch(`${baseUrl}/webhook`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-hub-signature-256": `sha256=${signature}`,
+    },
+    body,
+  });
+
+  assert.equal(response.status, 200);
+});
+
+test("a payload signed with the wrong secret is rejected", async (t) => {
+  process.env.WHATSAPP_APP_SECRET = "test-app-secret";
+  t.after(() => delete process.env.WHATSAPP_APP_SECRET);
+
+  const body = JSON.stringify({
+    object: "whatsapp_business_account",
+    entry: [],
+  });
+  const signature = crypto
+    .createHmac("sha256", "a-different-secret")
+    .update(body)
+    .digest("hex");
+
+  const response = await fetch(`${baseUrl}/webhook`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-hub-signature-256": `sha256=${signature}`,
+    },
+    body,
+  });
+
+  assert.equal(response.status, 401);
 });

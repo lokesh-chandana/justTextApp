@@ -15,27 +15,43 @@ app.use(
   }),
 );
 
-function hasValidSignature(request) {
-  const appSecret = process.env.WHATSAPP_APP_SECRET;
+function checkSignature(request) {
+  const appSecret = process.env.WHATSAPP_APP_SECRET?.trim();
 
   // Signature checking is optional locally, but should be configured in production.
-  if (!appSecret) return true;
+  if (!appSecret) return { valid: true };
 
-  const signature = request.get("x-hub-signature-256");
-  if (!signature || !request.rawBody) return false;
+  const received = request.get("x-hub-signature-256");
+  if (!received) return { valid: false, reason: "missing signature header" };
+
+  const rawBody = request.rawBody;
+  if (!rawBody?.length) return { valid: false, reason: "missing raw body" };
 
   const expected = `sha256=${crypto
     .createHmac("sha256", appSecret)
-    .update(request.rawBody)
+    .update(rawBody)
     .digest("hex")}`;
 
-  const receivedBuffer = Buffer.from(signature);
+  const receivedBuffer = Buffer.from(received);
   const expectedBuffer = Buffer.from(expected);
 
-  return (
+  if (
     receivedBuffer.length === expectedBuffer.length &&
     crypto.timingSafeEqual(receivedBuffer, expectedBuffer)
-  );
+  ) {
+    return { valid: true };
+  }
+
+  return {
+    valid: false,
+    reason: "signature mismatch",
+    details: {
+      rawBodyBytes: rawBody.length,
+      contentLength: request.get("content-length"),
+      receivedPrefix: received.slice(0, 16),
+      expectedPrefix: expected.slice(0, 16),
+    },
+  };
 }
 
 function runInBackground(promise) {
@@ -97,7 +113,13 @@ app.get("/webhook", (request, response) => {
 
 // Meta delivers incoming WhatsApp events here.
 app.post("/webhook", (request, response) => {
-  if (!hasValidSignature(request)) {
+  const signature = checkSignature(request);
+
+  if (!signature.valid) {
+    console.error("Rejected webhook", {
+      reason: signature.reason,
+      ...signature.details,
+    });
     runInBackground(logWebhook(request));
     return response.sendStatus(401);
   }
