@@ -1,7 +1,7 @@
 RewriteEngine On
 
-# Default document
-DirectoryIndex index.php
+# Default document (Vercel uses api/; Apache mirrors that)
+DirectoryIndex api/index.php
 
 # Hide sensitive / internal files
 <FilesMatch "^(config|control_security)\.php$">
@@ -14,5 +14,8 @@ RewriteRule ^supabase(/|$) - [F,L]
 # Block hidden files (e.g. .env if placed here)
 RewriteRule "(^|/)\.(?!well-known/)" - [F,L]
 
-# WhatsApp webhook: /whatsapp-callback → backend handler
-RewriteRule ^whatsapp-callback/?$ backend/whatsapp_callback.php?action=WhatsAppCallback [L,QSA]
+# Pretty / local aliases → api handlers (same as vercel.json routes)
+RewriteRule ^whatsapp-callback/?$ api/whatsapp_callback.php?action=WhatsAppCallback [L,QSA]
+RewriteRule ^login\.php$ api/login.php [L,QSA]
+RewriteRule ^index\.php$ api/index.php [L,QSA]
+RewriteRule ^login/?$ api/login.php [L,QSA]

@@ -17,10 +17,16 @@ if (is_readable($envPath)) {
     }
 }
 
+function env_value(string $key): string
+{
+    $value = $_ENV[$key] ?? getenv($key);
+    return is_string($value) ? $value : '';
+}
+
 function supabase_request(string $method, string $path, ?array $body = null, array $extraHeaders = []): array
 {
-    $base = rtrim((string) ($_ENV['SUPABASE_URL'] ?? ''), '/');
-    $key = (string) ($_ENV['SUPABASE_SERVICE_ROLE_KEY'] ?? '');
+    $base = rtrim(env_value('SUPABASE_URL'), '/');
+    $key = env_value('SUPABASE_SERVICE_ROLE_KEY');
 
     if ($base === '' || $key === '') {
         throw new RuntimeException('Supabase credentials are missing.');

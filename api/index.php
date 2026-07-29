@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/control_security.php';
+require_once dirname(__DIR__) . '/control_security.php';
 
 $name = htmlspecialchars((string) ($_SESSION['name'] ?? 'User'), ENT_QUOTES, 'UTF-8');
 ?>
