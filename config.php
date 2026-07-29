@@ -55,7 +55,7 @@ function supabase_request(string $method, string $path, ?array $body = null, arr
     $raw = curl_exec($ch);
     $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $error = curl_error($ch);
-    curl_close($ch);
+    unset($ch);
 
     if ($raw === false) {
         throw new RuntimeException('Supabase request failed: ' . $error);
