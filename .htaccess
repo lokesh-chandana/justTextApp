@@ -1,0 +1,18 @@
+RewriteEngine On
+
+# Default document
+DirectoryIndex index.php
+
+# Hide sensitive / internal files
+<FilesMatch "^(config|control_security)\.php$">
+  Require all denied
+</FilesMatch>
+
+# Block direct access to query logs and local sql
+RewriteRule ^supabase(/|$) - [F,L]
+
+# Block hidden files (e.g. .env if placed here)
+RewriteRule "(^|/)\.(?!well-known/)" - [F,L]
+
+# WhatsApp webhook: /whatsapp-callback → backend handler
+RewriteRule ^whatsapp-callback/?$ backend/whatsapp_callback.php?action=WhatsAppCallback [L,QSA]
